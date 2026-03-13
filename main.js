@@ -1,3 +1,4 @@
+const { time } = require("console");
 const fs = require("fs");
 
 // ============================================================
@@ -128,7 +129,26 @@ function getActiveTime(shiftDuration, idleTime) {
 // Returns: boolean
 // ============================================================
 function metQuota(date, activeTime) {
-    // TODO: Implement this function
+    let dateParts = date.split("-");
+    let year = parseInt(dateParts[0]);
+    let month = parseInt(dateParts[1]);
+    let day = parseInt(dateParts[2]);
+    timeParts = activeTime.split(":");
+    let activeHours = parseInt(timeParts[0]);
+    let activeMinutes = parseInt(timeParts[1]);
+    // During special period (Eid), quota is 6 hours
+    if(month === 4 && (day >= 10 && day <= 30)){
+        if(activeHours >= 6) return true;
+    }
+    // If the hour is 8, minutes is at least 24
+    else if(activeHours === 8){
+        if(activeMinutes >= 24) return true;
+    }
+    // If the hour is more than 8, quota is always met
+    else if(activeHours > 8){
+        return true;
+    }
+    return false;
 }
 
 // ============================================================
@@ -138,7 +158,42 @@ function metQuota(date, activeTime) {
 // Returns: object with 10 properties or empty object {}
 // ============================================================
 function addShiftRecord(textFile, shiftObj) {
-    // TODO: Implement this function
+    let fileData = fs.readFileSync(textFile, 'utf8').split("\n");
+    //remove last empty line if exists
+    if(fileData[fileData.length-1].trim() === ""){
+        fileData.pop();
+    }
+    //check for duplicates
+    for(let i=0; i<fileData.length; i++){
+        let fields = fileData[i].split(",");
+        if(fields[0] === shiftObj.driverID && fields[2] === shiftObj.date){
+            return {};
+        }
+    }
+    //add new record to file
+    //Calculate required values
+    let shiftDuration = getShiftDuration(shiftObj.startTime, shiftObj.endTime);
+    let idleTime = getIdleTime(shiftObj.startTime, shiftObj.endTime);
+    let activeTime = getActiveTime(shiftDuration, idleTime);
+    let metQuotaVal = metQuota(shiftObj.date, activeTime);
+    //default bonus is false
+    let hasBonus = false;
+    let newShift = {
+        driverID: shiftObj.driverID,
+        driverName: shiftObj.driverName,
+        date: shiftObj.date,
+        startTime: shiftObj.startTime,
+        endTime: shiftObj.endTime,
+        shiftDuration: shiftDuration,
+        idleTime: idleTime,
+        activeTime: activeTime,
+        metQuota: metQuotaVal,
+        hasBonus: hasBonus
+    };
+    // Append new line to file
+    let newLine = `${newShift.driverID},${newShift.driverName},${newShift.date},${newShift.startTime},${newShift.endTime},${newShift.shiftDuration},${newShift.idleTime},${newShift.activeTime},${newShift.metQuota},${newShift.hasBonus}\n`;
+    fs.appendFileSync(textFile, newLine, 'utf8');
+    return newShift;
 }
 
 // ============================================================
@@ -150,7 +205,22 @@ function addShiftRecord(textFile, shiftObj) {
 // Returns: nothing (void)
 // ============================================================
 function setBonus(textFile, driverID, date, newValue) {
-    // TODO: Implement this function
+    let fileData = fs.readFileSync(textFile, 'utf8').split("\n");
+    //remove last empty line if exists
+    if(fileData[fileData.length-1].trim() === ""){ 
+        fileData.pop();
+    }
+    //check the driverID and date to find the line to update
+    for(let i=0; i<fileData.length; i++){
+        let fields = fileData[i].split(",");
+        if(fields[0] === driverID && fields[2] === date){
+            fields[9] = newValue;
+            //update the line
+            fileData[i] = fields.join(",");
+            //write back to file
+            fs.writeFileSync(textFile, fileData.join("\n"), 'utf8');
+        }
+    }
 }
 
 // ============================================================
